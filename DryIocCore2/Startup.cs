@@ -8,8 +8,10 @@ using DryIocCore2.TenantSupport.AspNetCore;
 using DryIocCore2.TenantSupport.AspNetCore.TenantResolvers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace DryIocCore2
@@ -33,38 +35,15 @@ namespace DryIocCore2
             var resolver = new FallbackTenantResolver(new HeaderTenantResolver(), "t1");
             services.AddTenantSupport(resolver);
 
-            var container = new Container(rules => rules.With(propertiesAndFields: PropertiesAndFields.Of))
-                // optional: support for MEF service discovery
-                //.WithMef()
-                // setup DI adapter
+            var container = new Container()
                 .WithDependencyInjectionAdapter(services,
-                    // optional: get original DryIoc.ContainerException if specified type is not resolved, 
-                    // and prevent fallback to default resolution by infrastructure
                     throwIfUnresolved: type => type.Name.EndsWith("Controller"));
-/*
- ,
 
-                    // optional: You may Log or Customize the infrastructure components registrations
-                    registerDescriptor: (registrator, descriptor) =>
-                    {
-#if DEBUG
-                        if (descriptor.ServiceType == typeof(ILoggerFactory))
-                            Console.WriteLine($"Logger factory is registered as instance: {descriptor.ImplementationInstance != null}");
-#endif
-                        return false; // fallback to default registration logic
-                    });
-*/
+            // Otpion 1 - register custom scope factory
+            //container.Register<IServiceScopeFactory, MultiTenantDryIocServiceScopeFactory>(Reuse.Singleton, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
 
             // Your registrations are defined in CompositionRoot class
             var serviceProvider = container.ConfigureServiceProvider<CompositionRoot>();
-
-            /*
-            var r = container.Resolve<TenantContainerManager>();
-
-            var t1Container = r.GetTenantContainer("t1");
-            var t2Container = r.GetTenantContainer("t2");
-            var t3Container = r.GetTenantContainer("t3");
-             */
 
             return serviceProvider;
         }
@@ -75,13 +54,15 @@ namespace DryIocCore2
         {
             app.UseTenantSupport();
 
+            // Otpion 2 - replace HttpContext.RequestServices
+            app.UseMiddleware<DryIocTenantSupportMiddleware>();
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
             }
 
             app.UseMvc();
-
         }
 
         private static IEnumerable<PropertyOrFieldServiceInfo> DeclaredPublicProperties(Request request)

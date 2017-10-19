@@ -1,14 +1,17 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
+using DryIoc;
 using DryIocCore2.TenantSupport.AspNetCore.TenantResolvers;
+using DryIocCore2.TenantSupport.DryIoc;
 using Microsoft.AspNetCore.Http;
 
 namespace DryIocCore2.TenantSupport.AspNetCore
 {
-    public class TenantSupportMiddleware
+    public class DryIocTenantSupportMiddleware
     {
         private readonly RequestDelegate _next;
 
-        public TenantSupportMiddleware(RequestDelegate next)
+        public DryIocTenantSupportMiddleware(RequestDelegate next)
         {
             _next = next;
         }
@@ -26,8 +29,14 @@ namespace DryIocCore2.TenantSupport.AspNetCore
             }
             else
             {
-                using (tenantProvider.BeginScope(tenant))
+                var tenantContainerProvider = (ITenantContainerProvider) httpContext.RequestServices.GetService(typeof(ITenantContainerProvider));
+                var tenantContainer = tenantContainerProvider.GetTenantContainer(tenant);
+                using (var scopedConatiner = tenantContainer.OpenScope(Reuse.WebRequestScopeName))
                 {
+                    // replace the RequestScope container by the tenant request scope
+                    httpContext.RequestServices = scopedConatiner.Resolve<IServiceProvider>();
+
+                    // Call the next middleware delegate in the pipeline 
                     await _next.Invoke(httpContext);
                 }
             }

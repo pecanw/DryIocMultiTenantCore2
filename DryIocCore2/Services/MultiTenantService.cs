@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using DryIoc;
 using DryIocCore2.Models;
 using DryIocCore2.TenantSupport;
+using DryIocCore2.TenantSupport.DryIoc;
 
 namespace DryIocCore2.Services
 {
@@ -10,13 +11,13 @@ namespace DryIocCore2.Services
     {
         private readonly ITenantProvider _tenantProvider;
         private readonly Func<ITenantService> _tenantServiceResolver;
-        private readonly TenantContainerManager _tenantContainerManager;
+        private readonly ITenantContainerProvider _tenantContainerProvider;
 
-        public MultiTenantService(ITenantProvider tenantProvider, Func<ITenantService> tenantServiceResolver, TenantContainerManager tenantContainerManager)
+        public MultiTenantService(ITenantProvider tenantProvider, Func<ITenantService> tenantServiceResolver, ITenantContainerProvider tenantContainerProvider)
         {
             _tenantProvider = tenantProvider;
             _tenantServiceResolver = tenantServiceResolver;
-            _tenantContainerManager = tenantContainerManager;
+            _tenantContainerProvider = tenantContainerProvider;
         }
 
         public IEnumerable<TenantTestModel> GetServicesForTenants()
@@ -43,7 +44,7 @@ namespace DryIocCore2.Services
                 using (_tenantProvider.BeginScope(tenant))
                 {
                     // working but ugly (I don't want to flood the services code with the "tenant-related services / code")
-                    var tenantContainer =  _tenantContainerManager.GetTenantContainer(tenant);
+                    var tenantContainer =  _tenantContainerProvider.GetTenantContainer(tenant);
                     var tenantService = tenantContainer.Resolve<ITenantService>();
                     yield return new TenantTestModel(tenant, tenantService.DescribeServices());
                 }
